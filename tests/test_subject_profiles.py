@@ -17,6 +17,22 @@ def test_normalize_blank_is_none():
     assert service.normalize_callsign("   ") is None
 
 
+def test_normalize_allows_alphanumeric_ssid():
+    # Phone/APRS-IS beacons (e.g. APRS.fi) use alphanumeric SSIDs like -I.
+    assert service.normalize_callsign("k0nwj-i") == "K0NWJ-I"
+
+
+def test_alphanumeric_ssid_still_matches_on_base(fresh_db):
+    from conflux.adapters import aprs
+    sid = service.create_subject("Dad", "K0NWJ-I")
+    callmap = aprs.build_callsign_map(service.subjects_public())
+    assert callmap == {"K0NWJ": sid}
+    # a beacon from any SSID of that base resolves to Dad, and the server-side
+    # filter is a base wildcard that will actually catch it.
+    assert aprs.resolve_subject("K0NWJ-I", callmap) == sid
+    assert aprs.default_filter(callmap) == "b/K0NWJ*"
+
+
 @pytest.mark.parametrize("bad", ["ABCDE", "12345", "KE0ABC-999", "K@0ABC", "KE0ABC-", "x"])
 def test_normalize_rejects_malformed(bad):
     with pytest.raises(ValueError):

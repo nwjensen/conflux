@@ -92,9 +92,11 @@ def _apply_delivery(session: Session, event: CanonicalEvent) -> None:
 
 # --- Subject registry ---------------------------------------------------------
 
-# A base amateur callsign (SSID stripped) plus an optional -NN SSID. We match
-# APRS beacons on the base, so the SSID is cosmetic but preserved as entered.
-_CALLSIGN_RE = re.compile(r"^[A-Z0-9]{2,7}(-[0-9]{1,2})?$")
+# A base amateur callsign (SSID stripped) plus an optional SSID. Traditional
+# AX.25 SSIDs are numeric (-1..-15), but app/APRS-IS-originated beacons (e.g. a
+# phone via APRS.fi) commonly use an alphanumeric SSID like ``-I`` — so allow
+# either. We match beacons on the base, so the SSID is cosmetic but preserved.
+_CALLSIGN_RE = re.compile(r"^[A-Z0-9]{2,7}(-[A-Z0-9]{1,2})?$")
 
 
 def _base(call: str) -> str:
