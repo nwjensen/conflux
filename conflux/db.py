@@ -140,7 +140,13 @@ class Transmission(Base):
 
 def make_engine(url: Optional[str] = None):
     url = url or config.SETTINGS.database_url
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    if url.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+    else:
+        # Pin the client encoding to UTF-8. On minimal/non-UTF-8 locales libpq
+        # otherwise negotiates ASCII and returns text as bytes, which breaks
+        # SQLAlchemy's server-version parsing at connect time.
+        connect_args = {"client_encoding": "utf8"}
     return create_engine(url, future=True, connect_args=connect_args)
 
 
