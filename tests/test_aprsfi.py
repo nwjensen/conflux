@@ -53,6 +53,16 @@ def test_entry_epoch():
     assert aprsfi.entry_epoch({}) is None
 
 
+def test_is_stale_guards_ancient_cached_fixes():
+    now = 1_000_000.0
+    fresh = int(now - 3600)          # 1 hour old
+    ancient = int(now - 30 * 86400)  # 30 days old
+    assert aprsfi.is_stale(fresh, now, 24.0) is False
+    assert aprsfi.is_stale(ancient, now, 24.0) is True
+    assert aprsfi.is_stale(ancient, now, 0) is False   # guard disabled
+    assert aprsfi.is_stale(None, now, 24.0) is False
+
+
 # --- full transform pipeline (parse -> resolve -> movement -> event) ---
 
 def test_full_transform_pipeline():

@@ -136,6 +136,10 @@ class Settings:
     aprsfi_url: str = os.environ.get("CONFLUX_APRSFI_URL", "https://api.aprs.fi/api/get")
     # aprs.fi asks callers not to poll faster than ~1/min; keep a safe floor.
     aprsfi_poll_seconds: float = max(30.0, _float_env("CONFLUX_APRSFI_POLL", 60.0))
+    # aprs.fi returns the last-known position regardless of age. Ignore fixes
+    # older than this so a long-stale cached position is never ingested as if it
+    # were current (0 disables the guard).
+    aprsfi_max_age_hours: float = _float_env("CONFLUX_APRSFI_MAX_AGE_HOURS", 24.0)
 
 
 SETTINGS = Settings()

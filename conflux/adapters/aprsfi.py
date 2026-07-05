@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .. import config, service
-from ..models import CanonicalEvent, EventType, Source
+from ..models import CanonicalEvent, EventType, Source, utcnow
 from .aprs import build_callsign_map, is_moving, resolve_subject
 from .base import Adapter, EmitFn
 
@@ -96,6 +96,13 @@ def entry_epoch(entry: dict) -> Optional[int]:
         return None
 
 
+def is_stale(epoch: Optional[int], now_epoch: float, max_age_hours: float) -> bool:
+    """True if a fix is older than the max age (guard disabled when age <= 0)."""
+    if epoch is None or max_age_hours <= 0:
+        return False
+    return (now_epoch - epoch) > max_age_hours * 3600.0
+
+
 # --- Network adapter (isolates the blocking HTTP client) ----------------------
 
 @dataclass
@@ -135,6 +142,7 @@ class AprsFiAdapter(Adapter):
             log.warning("aprs.fi API error: %s", data.get("description") or data)
             return []
 
+        now_epoch = utcnow().timestamp()
         out: list[CanonicalEvent] = []
         for entry in parse_entries(data):
             sid = resolve_subject(str(entry.get("name", "")), callmap)
@@ -143,6 +151,8 @@ class AprsFiAdapter(Adapter):
             epoch = entry_epoch(entry)
             if epoch is not None and self._last_seen.get(sid) == epoch:
                 continue  # unchanged fix — don't re-emit (keeps absence honest)
+            if is_stale(epoch, now_epoch, s.aprsfi_max_age_hours):
+                continue  # long-stale cached position — not a current observation
             lat, lon = _to_float(entry.get("lat")), _to_float(entry.get("lng"))
             if lat is None or lon is None:
                 continue
