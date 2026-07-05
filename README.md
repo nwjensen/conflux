@@ -136,9 +136,24 @@ CONFLUX_SIMULATOR=false \
 make run
 ```
 
-Give each subject a real callsign (via `CONFLUX_SEED_SUBJECTS` or the DB) and the
-adapter auto-builds an APRS-IS filter for them. Additional adapters (Meshtastic,
-MeshCore, SDR) drop in behind the same `Adapter` interface in `conflux/adapters/`.
+Give each subject a real callsign (in the Hub's **Manage** dialog, via
+`CONFLUX_SEED_SUBJECTS`, or the DB) and the adapter auto-builds an APRS-IS filter
+for them. Additional adapters (Meshtastic, MeshCore, SDR) drop in behind the same
+`Adapter` interface in `conflux/adapters/`.
+
+### Alternative: aprs.fi poller
+
+Some positions live only in **aprs.fi** (e.g. its browser "share location" /
+web-station feature) and are never transmitted onto APRS-IS — so an APRS-IS
+subscriber can't see them. The aprs.fi poller pulls each subject's last position
+from the aprs.fi HTTP API instead. It keys on the entry's real last-heard time,
+so a stale fix is never re-emitted and the absence timers stay honest.
+
+```bash
+CONFLUX_APRSFI_ENABLED=true \
+CONFLUX_APRSFI_API_KEY=xxxxxxxx \   # free key from https://aprs.fi/account/
+make run
+```
 
 ---
 

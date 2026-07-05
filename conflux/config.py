@@ -126,5 +126,16 @@ class Settings:
     aprs_move_distance_m: float = _float_env("CONFLUX_APRS_MOVE_M", 50.0)
     aprs_reconnect_seconds: float = _float_env("CONFLUX_APRS_RECONNECT", 30.0)
 
+    # --- aprs.fi poller (position via the aprs.fi HTTP API) ------------------
+    # A pull alternative to APRS-IS: works when a subject's position lives in
+    # aprs.fi (e.g. its browser "share location" / web-station feature) but is
+    # never transmitted onto APRS-IS. Needs a free aprs.fi API key. Movement
+    # thresholds and callsign->subject matching are shared with the APRS adapter.
+    aprsfi_enabled: bool = os.environ.get("CONFLUX_APRSFI_ENABLED", "false").lower() == "true"
+    aprsfi_api_key: str = os.environ.get("CONFLUX_APRSFI_API_KEY", "")
+    aprsfi_url: str = os.environ.get("CONFLUX_APRSFI_URL", "https://api.aprs.fi/api/get")
+    # aprs.fi asks callers not to poll faster than ~1/min; keep a safe floor.
+    aprsfi_poll_seconds: float = max(30.0, _float_env("CONFLUX_APRSFI_POLL", 60.0))
+
 
 SETTINGS = Settings()

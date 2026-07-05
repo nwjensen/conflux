@@ -56,6 +56,10 @@ async def lifespan(app: FastAPI):
         app_state.set_aprs_adapter(aprs)
         tasks.append(asyncio.create_task(aprs.run(emit)))
         log.info("APRS-IS adapter running (host=%s)", config.SETTINGS.aprs_host)
+    if config.SETTINGS.aprsfi_enabled:
+        from .adapters.aprsfi import AprsFiAdapter
+        tasks.append(asyncio.create_task(AprsFiAdapter().run(emit)))
+        log.info("aprs.fi poller running (every %ss)", config.SETTINGS.aprsfi_poll_seconds)
 
     try:
         yield
