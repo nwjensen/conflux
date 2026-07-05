@@ -12,7 +12,10 @@
       <div class="brand">CONFLUX</div>
       <div class="subtitle">Family Status</div>
     </div>
-    <div class="updated" id="lastRefreshed">—</div>
+    <div class="topbar-right">
+      <button class="manage" id="manageBtn" title="Edit family profiles">⚙ Manage</button>
+      <div class="updated" id="lastRefreshed">—</div>
+    </div>
   </header>
 
   <main>
@@ -49,6 +52,26 @@
       <menu>
         <button value="cancel" type="submit">Cancel</button>
         <button value="ok" id="ovApply" class="primary" type="submit">Apply</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- Manage profiles dialog (edit name + APRS callsign per family member) -->
+  <dialog id="manageDialog" class="manage-dialog">
+    <form method="dialog" id="manageForm">
+      <h3>Manage family profiles</h3>
+      <p class="hint">A callsign lets Conflux match APRS beacons to a person. Base
+        call or with SSID, e.g. <code>KE0ABC</code> or <code>KE0ABC-9</code>.</p>
+      <div id="manageList"></div>
+      <hr />
+      <div class="add-row">
+        <input id="addName" placeholder="Add person (name)" maxlength="80" />
+        <input id="addCallsign" placeholder="Callsign (optional)" maxlength="16" />
+        <button type="button" class="primary" id="addBtn">Add</button>
+      </div>
+      <p class="manage-err" id="manageErr"></p>
+      <menu>
+        <button value="close" type="submit">Done</button>
       </menu>
     </form>
   </dialog>

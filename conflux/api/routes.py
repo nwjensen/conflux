@@ -7,6 +7,8 @@ expose diagnostics, frequencies, or raw traffic.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -20,8 +22,37 @@ router = APIRouter()
 # --- Read-only UI contract ----------------------------------------------------
 
 @router.get("/subjects")
-def get_subjects():
+def get_subjects(all: bool = False):
+    """Active subjects by default; ``?all=true`` includes deactivated ones for the editor."""
+    if all:
+        return service.list_subjects(include_inactive=True)
     return views.subjects()
+
+
+# --- Subject profile management -----------------------------------------------
+
+class SubjectRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    callsign: Optional[str] = Field(None, max_length=16)
+    active: bool = True
+
+
+@router.post("/subjects")
+def post_subject(req: SubjectRequest):
+    try:
+        sid = service.create_subject(req.name, req.callsign, active=req.active)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"id": sid, "name": req.name.strip(),
+            "callsign": service.normalize_callsign(req.callsign), "active": req.active}
+
+
+@router.patch("/subjects/{subject_id}")
+def patch_subject(subject_id: int, req: SubjectRequest):
+    try:
+        return service.update_subject(subject_id, req.name, req.callsign, req.active)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/state")

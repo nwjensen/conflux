@@ -161,6 +161,77 @@ $("#overrideForm").addEventListener("submit", async (e) => {
 
 $("#backBtn").addEventListener("click", closeDetail);
 
+// ---- Manage profiles (edit name + APRS callsign) ----
+function showManageError(msg) {
+  $("#manageErr").textContent = msg || "";
+}
+
+async function renderManageList() {
+  const subjects = await api("/api/subjects?all=true");
+  const list = $("#manageList");
+  list.innerHTML = "";
+  for (const s of subjects) {
+    const row = document.createElement("div");
+    row.className = "manage-item" + (s.active ? "" : " inactive");
+    row.innerHTML = `
+      <input class="m-name" value="${(s.name ?? "").replace(/"/g, "&quot;")}" maxlength="80" aria-label="Name" />
+      <input class="m-call" value="${(s.callsign ?? "").replace(/"/g, "&quot;")}" placeholder="Callsign" maxlength="16" aria-label="Callsign" />
+      <label class="m-active"><input type="checkbox" class="m-act" ${s.active ? "checked" : ""} /> active</label>
+      <button type="button" class="m-save">Save</button>`;
+    row.querySelector(".m-save").onclick = () => saveSubject(s.id, row);
+    list.appendChild(row);
+  }
+}
+
+async function saveSubject(id, row) {
+  showManageError("");
+  const body = {
+    name: row.querySelector(".m-name").value,
+    callsign: row.querySelector(".m-call").value,
+    active: row.querySelector(".m-act").checked,
+  };
+  const res = await fetch(`/api/subjects/${id}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showManageError(err.detail || "Could not save.");
+    return;
+  }
+  const btn = row.querySelector(".m-save");
+  btn.textContent = "Saved ✓";
+  setTimeout(() => (btn.textContent = "Save"), 1200);
+  renderManageList();
+}
+
+async function addSubject() {
+  showManageError("");
+  const name = $("#addName").value.trim();
+  if (!name) { showManageError("Name is required."); return; }
+  const res = await fetch("/api/subjects", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, callsign: $("#addCallsign").value, active: true }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showManageError(err.detail || "Could not add.");
+    return;
+  }
+  $("#addName").value = "";
+  $("#addCallsign").value = "";
+  renderManageList();
+}
+
+$("#manageBtn").addEventListener("click", () => {
+  showManageError("");
+  renderManageList();
+  $("#manageDialog").showModal();
+});
+$("#addBtn").addEventListener("click", addSubject);
+// When the dialog closes, reflect any name/callsign changes on the home cards.
+$("#manageDialog").addEventListener("close", () => { if (selected === null) renderHome(); });
+
 // ---- Poll loop ----
 async function refresh() {
   try {

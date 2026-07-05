@@ -15,6 +15,7 @@ state engine resolve to OK.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 from dataclasses import dataclass, field
@@ -107,10 +108,12 @@ def default_filter(callmap: dict[str, int]) -> str:
 class APRSAdapter(Adapter):
     name: str = "aprs-is"
     _stop: bool = False
+    _reconnect_fast: bool = False
     _last_pos: dict[int, tuple[float, float]] = field(default_factory=dict)
     _loop: Optional[asyncio.AbstractEventLoop] = None
     _emit: Optional[EmitFn] = None
     _callmap: dict[str, int] = field(default_factory=dict)
+    _ais: object = None
 
     async def run(self, emit: EmitFn) -> None:
         self._loop = asyncio.get_running_loop()
@@ -123,7 +126,11 @@ class APRSAdapter(Adapter):
                 log.warning("APRS-IS connection error: %s", exc)
             if self._stop:
                 break
-            await asyncio.sleep(config.scaled(s.aprs_reconnect_seconds))
+            # After an explicit refresh, reconnect promptly to pick up the new
+            # roster/filter instead of waiting out the full backoff.
+            delay = 0.5 if self._reconnect_fast else config.scaled(s.aprs_reconnect_seconds)
+            self._reconnect_fast = False
+            await asyncio.sleep(delay)
 
     def _consume_blocking(self) -> None:
         import aprslib  # lazy: only needed when the adapter is enabled
@@ -137,9 +144,11 @@ class APRSAdapter(Adapter):
         log.info("APRS-IS connecting host=%s filter=%s subjects=%s",
                  s.aprs_host, filt, list(self._callmap))
         ais.connect()
+        self._ais = ais
         try:
             ais.consumer(self._on_packet, raw=False, blocking=True, immortal=False)
         finally:
+            self._ais = None
             ais.close()
 
     def _on_packet(self, packet: dict) -> None:
@@ -163,6 +172,19 @@ class APRSAdapter(Adapter):
                 asyncio.run_coroutine_threadsafe(self._emit(event), self._loop)
         except Exception:  # noqa: BLE001 — one bad packet must not stop the stream
             log.exception("failed to handle APRS packet")
+
+    def refresh(self) -> None:
+        """Drop the current connection so ``run`` reconnects with a fresh roster.
+
+        Safe to call from any thread: closing the socket unblocks the consumer,
+        which returns through ``run``'s loop and rebuilds the callsign map and
+        server-side filter from the current subjects.
+        """
+        self._reconnect_fast = True
+        ais = self._ais
+        if ais is not None:
+            with contextlib.suppress(Exception):
+                ais.close()
 
     def stop(self) -> None:
         self._stop = True

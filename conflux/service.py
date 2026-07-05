@@ -10,6 +10,7 @@ Both are synchronous and transactional (SQLite/Postgres safe). The async loops i
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -91,6 +92,62 @@ def _apply_delivery(session: Session, event: CanonicalEvent) -> None:
 
 # --- Subject registry ---------------------------------------------------------
 
+# A base amateur callsign (SSID stripped) plus an optional -NN SSID. We match
+# APRS beacons on the base, so the SSID is cosmetic but preserved as entered.
+_CALLSIGN_RE = re.compile(r"^[A-Z0-9]{2,7}(-[0-9]{1,2})?$")
+
+
+def _base(call: str) -> str:
+    """Strip the SSID and uppercase: ``ke0abc-9`` -> ``KE0ABC``."""
+    return call.split("-", 1)[0].strip().upper()
+
+
+def normalize_callsign(raw: Optional[str]) -> Optional[str]:
+    """Validate + normalize a callsign, or return ``None`` for blank input.
+
+    Raises :class:`ValueError` with a human message when the value is malformed —
+    the API turns that into a 400 the editor can show inline.
+    """
+    if raw is None:
+        return None
+    cs = raw.strip().upper()
+    if not cs:
+        return None
+    base = _base(cs)
+    if (not _CALLSIGN_RE.match(cs)
+            or not any(c.isdigit() for c in base)
+            or not any(c.isalpha() for c in base)):
+        raise ValueError(f"“{raw}” is not a valid callsign (e.g. KE0ABC or KE0ABC-9).")
+    return cs
+
+
+def _callsign_conflict(session: Session, base: str, exclude_id: Optional[int]) -> Optional[str]:
+    """Return the name of another subject already using this base callsign, if any."""
+    rows = session.execute(select(Subject.id, Subject.name, Subject.callsign)).all()
+    for sid, name, cs in rows:
+        if sid == exclude_id or not cs:
+            continue
+        if _base(cs) == base:
+            return name
+    return None
+
+
+def _maybe_refresh_aprs() -> None:
+    """Nudge the running APRS-IS adapter to reconnect with the new roster.
+
+    No-op when APRS is disabled or the adapter isn't running (e.g. under tests).
+    A callsign change alters the server-side filter, so a reconnect is required
+    for new beacons to actually arrive.
+    """
+    if not config.SETTINGS.aprs_enabled:
+        return
+    try:
+        from . import app_state  # late import: app_state imports service
+        app_state.refresh_aprs()
+    except Exception:  # noqa: BLE001 — a refresh failure must not fail the edit
+        pass
+
+
 def active_subject_ids() -> list[int]:
     with db.session_scope() as session:
         return list(session.execute(
@@ -145,9 +202,60 @@ def override(subject_id: int, target: State, immediate: bool = False,
     return transition
 
 
-def create_subject(name: str, callsign: Optional[str] = None) -> int:
+def list_subjects(include_inactive: bool = False) -> list[dict]:
+    """Full editable records (id/name/callsign/active) for the manage UI."""
     with db.session_scope() as session:
-        subj = Subject(name=name, callsign=callsign)
+        stmt = select(Subject).order_by(Subject.id)
+        if not include_inactive:
+            stmt = stmt.where(Subject.active.is_(True))
+        return [
+            {"id": s.id, "name": s.name, "callsign": s.callsign, "active": s.active}
+            for s in session.execute(stmt).scalars().all()
+        ]
+
+
+def create_subject(name: str, callsign: Optional[str] = None, active: bool = True) -> int:
+    """Add a subject. Validates the callsign and rejects duplicates. Returns the id."""
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Name is required.")
+    cs = normalize_callsign(callsign)
+    with db.session_scope() as session:
+        if cs is not None:
+            other = _callsign_conflict(session, _base(cs), None)
+            if other is not None:
+                raise ValueError(f"Callsign {cs} is already assigned to {other}.")
+        subj = Subject(name=name, callsign=cs, active=active)
         session.add(subj)
         session.flush()
-        return subj.id
+        new_id = subj.id
+    _maybe_refresh_aprs()
+    return new_id
+
+
+def update_subject(subject_id: int, name: str, callsign: Optional[str], active: bool) -> dict:
+    """Edit a subject's profile. Validates + de-dups the callsign; refreshes APRS.
+
+    Raises :class:`ValueError` (→ 400) when the subject is missing, the name is
+    blank, the callsign is malformed, or the callsign collides with another subject.
+    """
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Name is required.")
+    cs = normalize_callsign(callsign)
+    with db.session_scope() as session:
+        subj = session.get(Subject, subject_id)
+        if subj is None:
+            raise ValueError("Subject not found.")
+        if cs is not None:
+            other = _callsign_conflict(session, _base(cs), subject_id)
+            if other is not None:
+                raise ValueError(f"Callsign {cs} is already assigned to {other}.")
+        subj.name = name
+        subj.callsign = cs
+        subj.active = bool(active)
+        session.flush()
+        result = {"id": subj.id, "name": subj.name,
+                  "callsign": subj.callsign, "active": subj.active}
+    _maybe_refresh_aprs()
+    return result

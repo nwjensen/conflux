@@ -28,7 +28,13 @@ body {
 }
 .brand { font-weight: 800; letter-spacing: 3px; font-size: 18px; }
 .subtitle { color: var(--muted); font-size: 14px; }
+.topbar-right { display: flex; align-items: center; gap: 14px; }
 .updated { color: var(--muted); font-size: 13px; }
+.manage {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+}
+.manage:hover { border-color: #3a4552; }
 
 main { padding: 18px; max-width: 1000px; margin: 0 auto; }
 
@@ -106,3 +112,30 @@ dialog menu { display: flex; justify-content: flex-end; gap: 10px; padding: 0; m
 
 .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
 .err { color: #ffb3ab; padding: 20px; }
+
+/* Manage profiles dialog */
+.manage-dialog { width: min(94vw, 560px); }
+.manage-dialog .hint { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.manage-dialog .hint code { background: var(--bg); padding: 1px 6px; border-radius: 6px; color: var(--text); }
+.manage-dialog input[type=text], .manage-dialog input:not([type]) {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 10px; font-size: 14px;
+}
+.manage-item {
+  display: grid; grid-template-columns: 1.4fr 1fr auto auto; gap: 8px;
+  align-items: center; padding: 6px 0;
+}
+.manage-item.inactive { opacity: .55; }
+.manage-item .m-active { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.manage-item .m-save {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+}
+.manage-item .m-save:hover { border-color: #3a4552; }
+.manage-dialog hr { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
+.add-row { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 8px; align-items: center; }
+.manage-err { color: #ffb3ab; font-size: 13px; min-height: 18px; margin: 10px 0 0; }
+@media (max-width: 520px) {
+  .manage-item, .add-row { grid-template-columns: 1fr 1fr; }
+  .manage-item .m-active, .manage-item .m-save { grid-column: span 1; }
+}

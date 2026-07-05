@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, db, service
+from . import app_state, config, db, service
 from .adapters.simulator import get_simulator
 from .api.routes import router
 from .app_state import emit
@@ -52,12 +52,15 @@ async def lifespan(app: FastAPI):
         log.info("Input simulator running")
     if config.SETTINGS.aprs_enabled:
         from .adapters.aprs import APRSAdapter
-        tasks.append(asyncio.create_task(APRSAdapter().run(emit)))
+        aprs = APRSAdapter()
+        app_state.set_aprs_adapter(aprs)
+        tasks.append(asyncio.create_task(aprs.run(emit)))
         log.info("APRS-IS adapter running (host=%s)", config.SETTINGS.aprs_host)
 
     try:
         yield
     finally:
+        app_state.set_aprs_adapter(None)
         for t in tasks:
             t.cancel()
         with contextlib.suppress(asyncio.CancelledError):
