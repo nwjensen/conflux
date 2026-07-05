@@ -50,6 +50,10 @@ async def lifespan(app: FastAPI):
         sim = get_simulator()
         tasks.append(asyncio.create_task(sim.run(emit)))
         log.info("Input simulator running")
+    if config.SETTINGS.aprs_enabled:
+        from .adapters.aprs import APRSAdapter
+        tasks.append(asyncio.create_task(APRSAdapter().run(emit)))
+        log.info("APRS-IS adapter running (host=%s)", config.SETTINGS.aprs_host)
 
     try:
         yield

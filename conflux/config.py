@@ -110,5 +110,21 @@ class Settings:
         "CONFLUX_SEED_SUBJECTS", "Dad:KE0ABC,Mom:KE0DEF,Teen:KE0GHI"
     )
 
+    # --- APRS-IS input adapter (real radio input via the APRS-IS network) ---
+    # Off by default; the simulator covers development. Enable to ingest live
+    # position reports for subjects whose callsign matches a packet's sender.
+    aprs_enabled: bool = os.environ.get("CONFLUX_APRS_ENABLED", "false").lower() == "true"
+    aprs_host: str = os.environ.get("CONFLUX_APRS_HOST", "rotate.aprs2.net")
+    aprs_port: int = _int_env("CONFLUX_APRS_PORT", 14580)
+    # Login callsign + passcode. "-1" is receive-only (no transmit rights).
+    aprs_callsign: str = os.environ.get("CONFLUX_APRS_CALLSIGN", "N0CALL")
+    aprs_passcode: str = os.environ.get("CONFLUX_APRS_PASSCODE", "-1")
+    # Server-side filter. Empty -> built automatically from subject callsigns.
+    aprs_filter: str = os.environ.get("CONFLUX_APRS_FILTER", "")
+    # Movement detection thresholds.
+    aprs_speed_threshold_kmh: float = _float_env("CONFLUX_APRS_SPEED_KMH", 3.0)
+    aprs_move_distance_m: float = _float_env("CONFLUX_APRS_MOVE_M", 50.0)
+    aprs_reconnect_seconds: float = _float_env("CONFLUX_APRS_RECONNECT", 30.0)
+
 
 SETTINGS = Settings()

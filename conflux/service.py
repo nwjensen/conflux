@@ -98,6 +98,16 @@ def active_subject_ids() -> list[int]:
         ).scalars().all())
 
 
+def subjects_public() -> list[dict]:
+    """Minimal subject records (id/name/callsign) for adapters and registries."""
+    with db.session_scope() as session:
+        rows = session.execute(
+            select(Subject.id, Subject.name, Subject.callsign)
+            .where(Subject.active.is_(True)).order_by(Subject.id)
+        ).all()
+        return [{"id": r.id, "name": r.name, "callsign": r.callsign} for r in rows]
+
+
 def ensure_seed_subjects() -> None:
     """Seed subjects from config on first start (idempotent)."""
     with db.session_scope() as session:

@@ -121,6 +121,27 @@ curl -X POST localhost:8080/api/override/1 -H 'Content-Type: application/json' \
 
 ---
 
+## Real inputs: APRS-IS adapter
+
+The built-in simulator is for development. To ingest **live** position reports,
+enable the APRS-IS adapter — it subscribes to the APRS-IS network, matches each
+packet's sender callsign to a subject, derives a `moving` flag (from reported
+speed, or distance since the last fix), and feeds the same ingest path as any
+other input. The core never learns APRS exists.
+
+```bash
+CONFLUX_APRS_ENABLED=true \
+CONFLUX_APRS_CALLSIGN=YOURCALL \   # your amateur call; passcode -1 = receive-only
+CONFLUX_SIMULATOR=false \
+make run
+```
+
+Give each subject a real callsign (via `CONFLUX_SEED_SUBJECTS` or the DB) and the
+adapter auto-builds an APRS-IS filter for them. Additional adapters (Meshtastic,
+MeshCore, SDR) drop in behind the same `Adapter` interface in `conflux/adapters/`.
+
+---
+
 ## API (read-only UI contract)
 
 | Endpoint | Purpose |

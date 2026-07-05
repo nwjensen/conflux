@@ -5,3 +5,5 @@ SQLAlchemy==2.0.51
 pydantic==2.13.4
 # PostgreSQL driver (used in Docker Compose / HA; SQLite needs no driver)
 psycopg[binary]==3.2.10
+# APRS-IS input adapter (real position input). Optional at runtime.
+aprslib==0.7.2
