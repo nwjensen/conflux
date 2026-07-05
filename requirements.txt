@@ -1,0 +1,7 @@
+# Conflux runtime dependencies
+fastapi==0.139.0
+uvicorn[standard]==0.50.0
+SQLAlchemy==2.0.51
+pydantic==2.13.4
+# PostgreSQL driver (used in Docker Compose / HA; SQLite needs no driver)
+psycopg[binary]==3.2.10

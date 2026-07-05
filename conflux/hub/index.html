@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conflux — Family Status</title>
+  <link rel="stylesheet" href="/hub/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">CONFLUX</div>
+      <div class="subtitle">Family Status</div>
+    </div>
+    <div class="updated" id="lastRefreshed">—</div>
+  </header>
+
+  <main>
+    <!-- Home: one card per subject -->
+    <section id="home" class="grid" aria-label="Family status"></section>
+
+    <!-- Detail drawer for a selected subject -->
+    <section id="detail" class="detail hidden" aria-label="Subject detail">
+      <button class="back" id="backBtn">&larr; Back to everyone</button>
+      <div id="detailBody"></div>
+    </section>
+  </main>
+
+  <!-- Override dialog (operator only, PIN protected) -->
+  <dialog id="overrideDialog">
+    <form method="dialog" id="overrideForm">
+      <h3>Override status — <span id="ovName"></span></h3>
+      <label>Set status
+        <select id="ovState">
+          <option value="OK">🟢 OK</option>
+          <option value="DELAYED">🟡 Delayed</option>
+          <option value="NEED_CONTACT">🟠 Need Contact</option>
+          <option value="NEED_HELP">🔴 Need Help</option>
+          <option value="EMERGENCY">🚨 Emergency</option>
+        </select>
+      </label>
+      <label>Operator PIN
+        <input type="password" id="ovPin" inputmode="numeric" autocomplete="off" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="ovImmediate" /> Send messages now (bypass schedule)
+      </label>
+      <p class="warn" id="ovWarn">This will send messages now.</p>
+      <menu>
+        <button value="cancel" type="submit">Cancel</button>
+        <button value="ok" id="ovApply" class="primary" type="submit">Apply</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="/hub/app.js"></script>
+</body>
+</html>

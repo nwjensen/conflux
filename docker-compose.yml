@@ -1,0 +1,41 @@
+# Conflux — Phase 1 local-first deployment.
+#
+# One active Conflux service backed by PostgreSQL. State is *derived* from an
+# append-only log, so failover recovery is just "reconnect and re-derive" — this
+# maps cleanly onto a Proxmox HA active/passive VM/LXC later (single authority
+# for state, no split-brain).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: conflux
+      POSTGRES_PASSWORD: ${CONFLUX_DB_PASSWORD:-conflux}
+      POSTGRES_DB: conflux
+    volumes:
+      - conflux-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conflux -d conflux"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  conflux:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CONFLUX_DATABASE_URL: postgresql+psycopg://conflux:${CONFLUX_DB_PASSWORD:-conflux}@db:5432/conflux
+      # --- Operator + behaviour (see .env.example) ---
+      CONFLUX_OVERRIDE_PIN: ${CONFLUX_OVERRIDE_PIN:-0000}
+      CONFLUX_TIME_SCALE: ${CONFLUX_TIME_SCALE:-1.0}
+      CONFLUX_SMS_INTERVAL_SECONDS: ${CONFLUX_SMS_INTERVAL_SECONDS:-0}
+      CONFLUX_SIMULATOR: ${CONFLUX_SIMULATOR:-true}
+      CONFLUX_SEED_SUBJECTS: ${CONFLUX_SEED_SUBJECTS:-Dad:KE0ABC,Mom:KE0DEF,Teen:KE0GHI}
+    ports:
+      - "${CONFLUX_PORT:-8080}:8080"
+
+volumes:
+  conflux-db:
