@@ -58,6 +58,12 @@ class UTCDateTime(TypeDecorator):
     impl = DateTime
     cache_ok = True
 
+    def load_dialect_impl(self, dialect):
+        # Use a timezone-aware column (Postgres TIMESTAMPTZ) so the absolute
+        # instant round-trips correctly; naive TIMESTAMP would shift by the
+        # session timezone. On SQLite this is still stored as an ISO string.
+        return dialect.type_descriptor(DateTime(timezone=True))
+
     def process_bind_param(self, value: Optional[datetime], dialect):
         if value is None:
             return None
