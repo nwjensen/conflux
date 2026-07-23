@@ -83,6 +83,46 @@ def last_position(subject_id: int) -> dict[str, Any]:
         }
 
 
+def track(subject_id: int, limit: int = 200) -> dict[str, Any]:
+    """The observed position fixes for one subject, oldest first.
+
+    Every entry is a report Conflux actually received. Nothing is interpolated,
+    smoothed, or inferred: consumers may join the points in order, but the
+    segments between them were never observed and must not be presented as a
+    route. ``distinct_points`` lets the UI say "132 fixes at 1 location" instead
+    of implying movement that no fix supports.
+    """
+    with db.session_scope() as session:
+        rows = session.execute(
+            select(Event)
+            .where(Event.subject_id == subject_id,
+                   Event.event_type == EventType.POSITION.value)
+            .order_by(Event.timestamp.desc()).limit(limit)
+        ).scalars().all()
+
+        fixes: list[dict[str, Any]] = []
+        for row in reversed(rows):  # oldest first for drawing
+            payload = row.payload or {}
+            lat, lon = payload.get("lat"), payload.get("lon")
+            if lat is None or lon is None:
+                continue
+            fixes.append({
+                "at": _iso(row.timestamp),
+                "lat": lat,
+                "lon": lon,
+                "moving": bool(payload.get("moving")),
+                "speed_kmh": payload.get("speed_kmh"),
+                "place": payload.get("place"),
+                "source": row.source.upper(),
+            })
+        return {
+            "subject_id": subject_id,
+            "count": len(fixes),
+            "distinct_points": len({(f["lat"], f["lon"]) for f in fixes}),
+            "fixes": fixes,
+        }
+
+
 def _coords(payload: dict) -> Optional[str]:
     lat, lon = payload.get("lat"), payload.get("lon")
     if lat is None or lon is None:

@@ -157,6 +157,33 @@ make run
 
 ---
 
+## The map (observed positions)
+
+Opening a subject in the Hub draws every position report Conflux received for
+them. It is a picture of **observations, not travel**: each point is a fix that
+actually arrived, and the dashed line between points only joins them in order —
+Conflux never saw the ground in between, so nothing claims a route was taken.
+The newest fix is drawn larger and carries the subject's state colour. Repeated
+beacons from one spot are reported honestly ("14 reports, all at one location")
+rather than implied movement.
+
+Two deliberate choices keep the map working in degraded conditions:
+
+- **Leaflet is vendored** into `conflux/hub/vendor/` — no CDN at runtime.
+- **Tiles are proxied and cached** by `conflux/tiles.py`. The browser only ever
+  requests `/api/tiles/...`; Conflux serves from its on-disk cache and fills
+  that cache from upstream as areas are viewed. When the link is down, a
+  previously-viewed area still draws — a *stale* cached tile beats a blank map.
+  Uncached areas render as a subtle placeholder, and the fixes still plot on top.
+
+Set `CONFLUX_TILE_CACHE_DIR` to a path the service user can write (the cache
+degrades to proxy-only if not). `CONFLUX_TILE_UPSTREAM=false` pins the basemap to
+whatever is already cached. Upstream defaults to OpenStreetMap — respect the
+[tile usage policy](https://operations.osmfoundation.org/policies/tiles/), or
+point `CONFLUX_TILE_URL` at your own tile server.
+
+---
+
 ## API (read-only UI contract)
 
 | Endpoint | Purpose |
@@ -164,6 +191,8 @@ make run
 | `GET /api/subjects` | List tracked subjects |
 | `GET /api/state[/{id}]` | Current state (+ details, reason, since) |
 | `GET /api/last_position/{id}` | Last known location + movement |
+| `GET /api/track/{id}` | Observed position fixes, oldest first (map) |
+| `GET /api/tiles/{z}/{x}/{y}.png` | Cached basemap tiles (proxy, see below) |
 | `GET /api/reachability/{id}` | Per-channel seen/pending indicators |
 | `GET /api/recent_messages/{id}` | Sent + received history |
 | `GET /api/transmission_log/{id}` | What was sent, when, on which channel |

@@ -10,9 +10,10 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from .. import config, service, views
+from .. import config, service, tiles, views
 from ..adapters.simulator import get_simulator
 from ..models import Source, State
 
@@ -70,6 +71,12 @@ def get_last_position(subject_id: int):
     return views.last_position(subject_id)
 
 
+@router.get("/track/{subject_id}")
+def get_track(subject_id: int, limit: int = 200):
+    """Observed position fixes for the hub map (oldest first, newest last)."""
+    return views.track(subject_id, limit=max(1, min(limit, 500)))
+
+
 @router.get("/reachability/{subject_id}")
 def get_reachability(subject_id: int):
     return views.reachability(subject_id)
@@ -88,6 +95,21 @@ def get_transmission_log(subject_id: int):
 @router.get("/timeline/{subject_id}")
 def get_timeline(subject_id: int):
     return views.timeline(subject_id)
+
+
+# --- Basemap tiles (cached proxy; see conflux.tiles) --------------------------
+
+@router.get("/tiles/{z}/{x}/{y}.png")
+async def get_tile(z: int, x: int, y: int):
+    if not tiles.is_valid_tile(z, x, y):
+        raise HTTPException(status_code=404, detail="No such tile.")
+    data = await tiles.get_tile(z, x, y)
+    if data is None:
+        # Not cached and upstream unreachable. The hub draws its own placeholder;
+        # observed positions still render on top of the gap.
+        raise HTTPException(status_code=503, detail="Tile unavailable offline.")
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
 
 
 # --- Operator override (PIN protected) ----------------------------------------

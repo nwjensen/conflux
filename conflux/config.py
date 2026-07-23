@@ -141,5 +141,20 @@ class Settings:
     # were current (0 disables the guard).
     aprsfi_max_age_hours: float = _float_env("CONFLUX_APRSFI_MAX_AGE_HOURS", 24.0)
 
+    # --- Basemap tiles (Family Command Hub map) ------------------------------
+    # The hub fetches tiles from Conflux, never from the internet directly, so
+    # the map keeps drawing previously-viewed areas while the link is down.
+    tile_url: str = os.environ.get(
+        "CONFLUX_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    )
+    tile_cache_dir: str = os.environ.get("CONFLUX_TILE_CACHE_DIR", "/var/lib/conflux/tiles")
+    # Soft cap; least-recently-written tiles are evicted past it.
+    tile_cache_mb: float = _float_env("CONFLUX_TILE_CACHE_MB", 256.0)
+    # Re-fetch a cached tile once it is this old (0 = cache never expires).
+    tile_max_age_days: float = _float_env("CONFLUX_TILE_MAX_AGE_DAYS", 30.0)
+    # Off = serve only what is already cached (fully offline basemap).
+    tile_upstream_enabled: bool = os.environ.get("CONFLUX_TILE_UPSTREAM", "true").lower() == "true"
+    tile_max_zoom: int = _int_env("CONFLUX_TILE_MAX_ZOOM", 19)
+
 
 SETTINGS = Settings()

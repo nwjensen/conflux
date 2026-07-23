@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Conflux — Family Status</title>
+  <!-- Leaflet is vendored, not loaded from a CDN: the hub must work with no
+       internet. Tiles come from Conflux's caching proxy for the same reason. -->
+  <link rel="stylesheet" href="/hub/vendor/leaflet.css" />
   <link rel="stylesheet" href="/hub/styles.css" />
 </head>
 <body>
@@ -25,6 +28,15 @@
     <!-- Detail drawer for a selected subject -->
     <section id="detail" class="detail hidden" aria-label="Subject detail">
       <button class="back" id="backBtn">&larr; Back to everyone</button>
+      <!-- Head and body are rewritten on every poll; the map block sits between
+           them and persists, so panning/zooming survives a refresh. -->
+      <div id="detailHead"></div>
+      <div class="block map-block" id="mapBlock">
+        <h3>Observed positions</h3>
+        <div id="map" class="map"></div>
+        <div class="map-empty hidden" id="mapEmpty">No position reports received.</div>
+        <div class="note" id="mapNote"></div>
+      </div>
       <div id="detailBody"></div>
     </section>
   </main>
@@ -76,6 +88,7 @@
     </form>
   </dialog>
 
+  <script src="/hub/vendor/leaflet.js"></script>
   <script src="/hub/app.js"></script>
 </body>
 </html>

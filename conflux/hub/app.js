@@ -1,13 +1,21 @@
 "use strict";
 
 // Conflux Family Command Hub — read-only, facts-only, spouse-first.
-// Polls the read endpoints and renders. No maps, no diagnostics, no advice.
+// Polls the read endpoints and renders. No diagnostics, no advice.
+//
+// The map shows received position reports and nothing else: points are fixes
+// that actually arrived, and the dashed line only joins them in order. It is
+// not a travelled route — Conflux never saw the ground between two fixes.
 
 const POLL_MS = 4000;
 let selected = null; // subject_id of the open detail view, or null for home
 
 const $ = (sel) => document.querySelector(sel);
 const api = (path) => fetch(path).then((r) => r.json());
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
 
 function relTime(iso) {
   if (!iso) return "unknown";
@@ -58,14 +66,117 @@ async function renderHome() {
   $("#lastRefreshed").textContent = `Updated ${localTime(new Date().toISOString())}`;
 }
 
-// ---- Detail: reachability + messages + timeline + override ----
+// ---- Map: observed position fixes ----
+const STATE_COLOR = {
+  OK: "#2ecc71", DELAYED: "#f1c40f", NEED_CONTACT: "#e67e22",
+  NEED_HELP: "#e74c3c", EMERGENCY: "#ff2d2d",
+};
+// Drawn in place of a tile Conflux has neither cached nor been able to fetch,
+// so an uncovered area reads as "no basemap here", not as a broken page.
+const OFFLINE_TILE =
+  "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+       <rect width="256" height="256" fill="#141922"/>
+       <path d="M0 0L256 256M256 0L0 256" stroke="#1e242e" stroke-width="1"/>
+     </svg>`
+  );
+
+let map = null;
+let trackLayer = null;
+let mapFitFor = null;  // subject the view was last auto-fitted to
+let mapDrawnKey = null; // last (subject, fix count, newest fix) actually drawn
+
+function ensureMap() {
+  if (map) return map;
+  map = L.map("map", { attributionControl: true }).setView([39.5, -98.35], 3);
+  L.tileLayer("/api/tiles/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    errorTileUrl: OFFLINE_TILE,
+    attribution: "© OpenStreetMap contributors · cached locally",
+  }).addTo(map);
+  trackLayer = L.layerGroup().addTo(map);
+  return map;
+}
+
+function fixPopup(f, isLatest) {
+  const when = `${localTime(f.at)} (${relTime(f.at)})`;
+  const speed = f.speed_kmh === null || f.speed_kmh === undefined
+    ? "" : `<br/>Speed reported: ${esc(f.speed_kmh)} km/h`;
+  const place = f.place ? `<br/>Comment: “${esc(f.place)}”` : "";
+  return `<b>${isLatest ? "Latest fix" : "Fix"}</b><br/>${esc(when)}
+    <br/>${esc(f.lat.toFixed(5))}, ${esc(f.lon.toFixed(5))}
+    <br/>${f.moving ? "Moving" : "Stopped"} · ${esc(f.source)}${speed}${place}`;
+}
+
+function updateMap(id, trk, stateName) {
+  const block = $("#mapBlock"), empty = $("#mapEmpty"), note = $("#mapNote");
+  const fixes = (trk && trk.fixes) || [];
+
+  if (!fixes.length) {
+    $("#map").classList.add("hidden");
+    empty.classList.remove("hidden");
+    note.textContent = "";
+    mapDrawnKey = null;
+    return;
+  }
+  $("#map").classList.remove("hidden");
+  empty.classList.add("hidden");
+
+  const latest = fixes[fixes.length - 1];
+  const key = `${id}:${trk.count}:${latest.at}`;
+  ensureMap();
+  map.invalidateSize();          // the block was hidden until the drawer opened
+  if (key === mapDrawnKey) return; // nothing new arrived; keep the user's view
+
+  trackLayer.clearLayers();
+  const points = fixes.map((f) => [f.lat, f.lon]);
+  if (trk.distinct_points > 1) {
+    // Dashed on purpose: the segments join reports in order, they are not a
+    // path anyone observed being travelled.
+    L.polyline(points, { color: "#6c7a89", weight: 2, dashArray: "4 6", opacity: 0.8 })
+      .addTo(trackLayer);
+  }
+  fixes.forEach((f, i) => {
+    const isLatest = i === fixes.length - 1;
+    L.circleMarker([f.lat, f.lon], {
+      radius: isLatest ? 8 : 4,
+      color: isLatest ? "#0e1116" : "#6c7a89",
+      weight: isLatest ? 2 : 1,
+      fillColor: isLatest ? (STATE_COLOR[stateName] || "#9aa7b4") : "#9aa7b4",
+      fillOpacity: isLatest ? 1 : 0.55,
+    }).addTo(trackLayer).bindPopup(fixPopup(f, isLatest));
+  });
+
+  if (mapFitFor !== id) {  // fit once per subject, then leave the view alone
+    if (trk.distinct_points > 1) {
+      map.fitBounds(L.latLngBounds(points).pad(0.25));
+    } else {
+      map.setView(points[points.length - 1], 15);
+    }
+    mapFitFor = id;
+  }
+  mapDrawnKey = key;
+
+  const where = trk.distinct_points === 1
+    ? "all at one location"
+    : `at ${trk.distinct_points} distinct locations`;
+  note.textContent =
+    `${trk.count} received position ${trk.count === 1 ? "report" : "reports"} ${where}. ` +
+    `Points are reports Conflux received; the dashed line joins them in order ` +
+    `and is not an observed route.`;
+  block.classList.remove("hidden");
+}
+
+// ---- Detail: map + reachability + messages + timeline + override ----
 async function renderDetail(id) {
-  const [state, pos, reach, msgs, tl] = await Promise.all([
+  const [state, pos, reach, msgs, tl, trk] = await Promise.all([
     api(`/api/state/${id}`),
     api(`/api/last_position/${id}`),
     api(`/api/reachability/${id}`),
     api(`/api/recent_messages/${id}`),
     api(`/api/timeline/${id}`),
+    api(`/api/track/${id}`).catch(() => null),
   ]);
 
   const reachRows = reach.channels
@@ -87,7 +198,7 @@ async function renderDetail(id) {
       <span>${e.text}${e.detail ? `<div class="note">${e.detail}</div>` : ""}</span></div>`)
     .join("");
 
-  $("#detailBody").innerHTML = `
+  $("#detailHead").innerHTML = `
     <h1>${state.name ?? "Subject " + id}</h1>
     <div class="chip s-${state.state}">${state.emoji} ${state.label.toUpperCase()}</div>
     <div class="state-detail">${state.details}</div>
@@ -95,8 +206,11 @@ async function renderDetail(id) {
     <div class="meta" style="margin-top:8px">
       <div>Last known location: <b>${pos.known ? pos.location : "Unknown"}</b></div>
       <div>Movement: <b>${pos.movement ?? "Unknown"}</b> · Updated ${stamp(pos.at)}</div>
-    </div>
+    </div>`;
 
+  updateMap(id, trk, state.state);
+
+  $("#detailBody").innerHTML = `
     <div class="block"><h3>Reachability</h3>${reachRows}
       <div class="note">${reach.note}</div></div>
     <div class="block"><h3>Latest messages</h3>${msgRows}</div>
@@ -111,6 +225,9 @@ async function renderDetail(id) {
 
 function openDetail(id) {
   selected = id;
+  // Re-fit and redraw on every open; only *polls* preserve the user's view.
+  mapFitFor = null;
+  mapDrawnKey = null;
   $("#home").classList.add("hidden");
   $("#detail").classList.remove("hidden");
   renderDetail(id);
